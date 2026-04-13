@@ -1,7 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
-import { Palette, Spacing, Radius, FontSize, Fonts } from '@/constants/theme';
+import { FontSize, Fonts, Palette, Radius, Spacing } from '@/constants/theme';
 import { Message } from '@/types';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface ChatBubbleProps {
   message: Message;
@@ -11,6 +11,7 @@ interface ChatBubbleProps {
 
 export function ChatBubble({ message, onFeedbackPress, onRetry }: ChatBubbleProps) {
   const isUser = message.role === 'user';
+  console.log("message", isUser ? "user" : "AI", message);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(isUser ? 20 : -20)).current;
 
@@ -65,6 +66,13 @@ export function ChatBubble({ message, onFeedbackPress, onRetry }: ChatBubbleProp
           </View>
         )}
 
+        {/* 💡 Suggested Answer: Visible directly if score is low */}
+        {!isUser && message.improvedAnswer && message.score && message.score < 8 && (
+          <View style={styles.suggestionBox}>
+            <Text style={styles.suggestionLabel}>Suggested Answer:</Text>
+            <Text style={styles.suggestionText}>"{message.improvedAnswer}"</Text>
+          </View>
+        )}
         {onRetry && (
           <TouchableOpacity onPress={onRetry} style={styles.retryBadge}>
             <Text style={styles.scoreText}>Retry ↺</Text>
@@ -212,5 +220,27 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: Palette.textTertiary,
+  },
+  suggestionBox: {
+    marginTop: Spacing.md,
+    padding: Spacing.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: Radius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: Palette.accent,
+  },
+  suggestionLabel: {
+    fontFamily: Fonts?.sansBold,
+    fontSize: FontSize.xs,
+    color: Palette.accent,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  suggestionText: {
+    fontFamily: Fonts?.sansMedium,
+    fontSize: FontSize.md,
+    color: Palette.textSecondary,
+    fontStyle: 'italic',
+    lineHeight: 20,
   },
 });
