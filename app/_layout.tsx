@@ -9,7 +9,7 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -44,6 +44,10 @@ export default function RootLayout() {
   });
 
   const initialize = useAuthStore((s) => s.initialize);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isInitialized = useAuthStore((s) => s.isInitialized);
+  const segments = useSegments();
+  const router = useRouter();
 
   useEffect(() => {
     // Start Firebase auth listener — restores session on every launch
@@ -56,6 +60,21 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
+
+  // Handle Authentication Routing
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const inAuthGroup = segments[0] === 'auth';
+
+    if (!isAuthenticated && !inAuthGroup) {
+      // Redirect to login if not authenticated
+      router.replace('/auth/login');
+    } else if (isAuthenticated && inAuthGroup) {
+      // Redirect to home if authenticated but tried to access auth screens
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated, isInitialized, segments]);
 
   if (!fontsLoaded) {
     return (
@@ -76,6 +95,8 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth/login" options={{ animation: 'fade' }} />
+          <Stack.Screen name="auth/register" />
           <Stack.Screen
             name="practice/scenarios"
             options={{

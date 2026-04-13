@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -14,7 +14,13 @@ import { useConversationStore } from '@/store/useConversationStore';
 export default function HomeScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const sessions = useConversationStore((s) => s.sessions);
+  const { sessions, fetchSessions } = useConversationStore();
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchSessions(user.id);
+    }
+  }, [user?.id]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();

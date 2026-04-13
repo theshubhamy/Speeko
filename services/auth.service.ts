@@ -1,14 +1,15 @@
+import { User } from '@/types';
 import {
   createUserWithEmailAndPassword,
+  User as FirebaseUser,
+  onAuthStateChanged,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
   updateProfile,
-  User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
-import { User } from '@/types';
 
 // ─── Map Firebase user → App user ────────────────────────────────────────────
 
@@ -60,6 +61,33 @@ export async function loginWithEmail(email: string, password: string): Promise<U
   if (!appUser) throw new Error('User profile not found. Please re-register.');
 
   return appUser;
+}
+
+
+// ─── Guest Login ──────────────────────────────────────────────────────────────
+
+export async function loginAsGuest(): Promise<User> {
+  const { user: fbUser } = await signInAnonymously(auth);
+
+  const guestName = `Guest_${fbUser.uid.slice(0, 5)}`;
+
+  const guestUser: User = {
+    id: fbUser.uid,
+    name: guestName,
+    email: '',
+    plan: 'free',
+    createdAt: Date.now(),
+    totalSessions: 0,
+    averageScore: 0,
+    streak: 0,
+  };
+
+  await setDoc(doc(db, 'users', fbUser.uid), {
+    ...guestUser,
+    createdAt: serverTimestamp(),
+  });
+
+  return guestUser;
 }
 
 // ─── Logout ───────────────────────────────────────────────────────────────────

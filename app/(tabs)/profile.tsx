@@ -8,6 +8,7 @@ import { useConversationStore } from '@/store/useConversationStore';
 
 export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const sessions = useConversationStore((s) => s.sessions);
 
   const menuItems = [
@@ -112,6 +113,15 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* ─── Logout Button ─────────────────────────────────────────────── */}
+        <TouchableOpacity 
+          style={styles.logoutButton} 
+          onPress={logout}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
 
         {/* ─── Version ───────────────────────────────────────────────────── */}
         <Text style={styles.version}>Speeko v1.0.0</Text>
@@ -296,5 +306,22 @@ const styles = StyleSheet.create({
     color: Palette.textMuted,
     textAlign: 'center',
     marginTop: Spacing.xxl,
+  },
+  // Logout
+  logoutButton: {
+    backgroundColor: Palette.surface,
+    borderWidth: 1,
+    borderColor: Palette.error + '40',
+    borderRadius: Radius.xl,
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
+  logoutText: {
+    fontFamily: Fonts?.sansBold,
+    fontSize: FontSize.md,
+    color: Palette.error,
   },
 });

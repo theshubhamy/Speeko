@@ -1,11 +1,19 @@
 import { FontSize, Fonts, Palette, Radius, ScenarioColors, Shadows, Spacing } from '@/constants/theme';
 import { useConversationStore } from '@/store/useConversationStore';
-import React from 'react';
+import { useAuthStore } from '@/store/useAuthStore';
+import React, { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HistoryScreen() {
-  const sessions = useConversationStore((s) => s.sessions);
+  const { sessions, fetchSessions, isFetchingSessions } = useConversationStore();
+  const userId = useAuthStore((s) => s.user?.id);
+
+  useEffect(() => {
+    if (userId) {
+      fetchSessions(userId);
+    }
+  }, [userId]);
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);

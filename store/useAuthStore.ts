@@ -3,6 +3,7 @@ import { User } from '@/types';
 import {
   loginWithEmail,
   registerWithEmail,
+  loginAsGuest as firebaseLoginAsGuest,
   logout as firebaseLogout,
   onAuthStateChange,
   getAppUser,
@@ -19,6 +20,7 @@ interface AuthState {
   // Actions
   initialize: () => () => void; // returns unsubscribe fn
   login: (email: string, password: string) => Promise<void>;
+  loginAsGuest: () => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
@@ -54,6 +56,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const user = await loginWithEmail(email, password);
+      set({ user, isAuthenticated: true, isLoading: false });
+    } catch (e: any) {
+      const message = firebaseErrorMessage(e.code);
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
+  },
+
+
+  // ─── Guest Login ──────────────────────────────────────────────────────────
+  loginAsGuest: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = await firebaseLoginAsGuest();
       set({ user, isAuthenticated: true, isLoading: false });
     } catch (e: any) {
       const message = firebaseErrorMessage(e.code);

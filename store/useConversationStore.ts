@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { Message, Session, ScenarioType } from '@/types';
+import { SessionService } from '@/services/session.service';
+import { useAuthStore } from './useAuthStore';
 
 interface ConversationState {
   // Active session
@@ -20,6 +22,8 @@ interface ConversationState {
   setShowFeedback: (show: boolean, messageId?: string) => void;
   endSession: (score?: number) => void;
   clearActiveSession: () => void;
+  fetchSessions: (userId: string) => Promise<void>;
+  isFetchingSessions: boolean;
 }
 
 let messageCounter = 0;
@@ -33,11 +37,15 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   showFeedback: false,
   activeFeedbackMessageId: null,
   sessions: [],
+  isFetchingSessions: false,
 
-  startSession: (scenarioType, scenarioTitle, context) => {
+  startSession: async (scenarioType, scenarioTitle, context) => {
+    const user = useAuthStore.getState().user;
+    const userId = user?.id || 'anonymous';
+    
     const session: Session = {
       id: generateSessionId(),
-      userId: 'user_1', // Replace with auth
+      userId,
       scenarioType,
       scenarioTitle,
       messages: [],
@@ -45,26 +53,56 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       createdAt: Date.now(),
       isActive: true,
     };
+
     set({ activeSession: session, messages: [], showFeedback: false, activeFeedbackMessageId: null });
+    
+    // Sync to Firestore
+    try {
+      await SessionService.createSession(session);
+    } catch (error) {
+      console.error('Failed to sync session start to Firestore:', error);
+    }
   },
 
-  addUserMessage: (text) => {
+  addUserMessage: async (text) => {
+    const { activeSession } = get();
     const message: Message = {
       id: generateId(),
       role: 'user',
       text,
       timestamp: Date.now(),
     };
+    
     set((state) => ({
       messages: [...state.messages, message],
     }));
+
+    // Sync to Firestore
+    if (activeSession) {
+      try {
+        await SessionService.addMessage(activeSession.id, message);
+      } catch (error) {
+        console.error('Failed to sync user message to Firestore:', error);
+      }
+    }
   },
 
-  addAiMessage: (message) => {
+  addAiMessage: async (message) => {
+    const { activeSession } = get();
+    
     set((state) => ({
       messages: [...state.messages, message],
       isAiTyping: false,
     }));
+
+    // Sync to Firestore
+    if (activeSession) {
+      try {
+        await SessionService.addMessage(activeSession.id, message);
+      } catch (error) {
+        console.error('Failed to sync AI message to Firestore:', error);
+      }
+    }
   },
 
   setIsAiTyping: (typing) => set({ isAiTyping: typing }),
@@ -72,7 +110,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   setShowFeedback: (show, messageId) =>
     set({ showFeedback: show, activeFeedbackMessageId: messageId || null }),
 
-  endSession: (score) => {
+  endSession: async (score) => {
     const { activeSession, messages } = get();
     if (!activeSession) return;
 
@@ -91,8 +129,42 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       showFeedback: false,
       activeFeedbackMessageId: null,
     }));
+
+    // Sync to Firestore
+    try {
+      await SessionService.endSession(activeSession.id, activeSession.userId, score);
+      
+      // Update local profile stats
+      if (score !== undefined) {
+        const currentUser = useAuthStore.getState().user;
+        if (currentUser) {
+          const prevTotal = currentUser.totalSessions || 0;
+          const prevAvg = currentUser.averageScore || 0;
+          const newTotal = prevTotal + 1;
+          const newAvg = (prevAvg * prevTotal + score) / newTotal;
+          
+          useAuthStore.getState().updateProfile({
+            totalSessions: newTotal,
+            averageScore: newAvg,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to sync session end to Firestore:', error);
+    }
   },
 
   clearActiveSession: () =>
     set({ activeSession: null, messages: [], showFeedback: false, activeFeedbackMessageId: null }),
+
+  fetchSessions: async (userId) => {
+    set({ isFetchingSessions: true });
+    try {
+      const sessions = await SessionService.getUserSessions(userId);
+      set({ sessions, isFetchingSessions: false });
+    } catch (error) {
+      console.error('Failed to fetch sessions:', error);
+      set({ isFetchingSessions: false });
+    }
+  },
 }));
