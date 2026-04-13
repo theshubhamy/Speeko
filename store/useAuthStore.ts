@@ -1,53 +1,113 @@
 import { create } from 'zustand';
 import { User } from '@/types';
+import {
+  loginWithEmail,
+  registerWithEmail,
+  logout as firebaseLogout,
+  onAuthStateChange,
+  getAppUser,
+} from '@/services/auth.service';
+import { auth } from '@/services/firebase';
 
 interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean; // tracks if onAuthStateChanged has fired at least once
+  error: string | null;
 
   // Actions
+  initialize: () => () => void; // returns unsubscribe fn
   login: (email: string, password: string) => Promise<void>;
-  loginAsGuest: () => void;
-  logout: () => void;
+  register: (name: string, email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  clearError: () => void;
   updateProfile: (updates: Partial<User>) => void;
 }
 
-// Mock user for MVP
-const MOCK_USER: User = {
-  id: 'user_1',
-  name: 'Shubham',
-  email: 'shubham@speeko.ai',
-  plan: 'free',
-  createdAt: Date.now(),
-  totalSessions: 12,
-  averageScore: 7.4,
-  streak: 3,
-};
-
-export const useAuthStore = create<AuthState>((set) => ({
-  user: MOCK_USER, // Auto-logged in for MVP
-  isAuthenticated: true,
+export const useAuthStore = create<AuthState>((set, get) => ({
+  user: null,
+  isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
+  error: null,
 
-  login: async (_email, _password) => {
-    set({ isLoading: true });
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    set({ user: MOCK_USER, isAuthenticated: true, isLoading: false });
+  // ─── Initialize — call once at app start ─────────────────────────────────
+  initialize: () => {
+    const unsubscribe = onAuthStateChange(async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const appUser = await getAppUser(firebaseUser);
+          set({ user: appUser, isAuthenticated: !!appUser, isInitialized: true });
+        } catch {
+          set({ user: null, isAuthenticated: false, isInitialized: true });
+        }
+      } else {
+        set({ user: null, isAuthenticated: false, isInitialized: true });
+      }
+    });
+    return unsubscribe;
   },
 
-  loginAsGuest: () => {
-    set({ user: MOCK_USER, isAuthenticated: true });
+  // ─── Login ────────────────────────────────────────────────────────────────
+  login: async (email, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = await loginWithEmail(email, password);
+      set({ user, isAuthenticated: true, isLoading: false });
+    } catch (e: any) {
+      const message = firebaseErrorMessage(e.code);
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
   },
 
-  logout: () => {
+  // ─── Register ─────────────────────────────────────────────────────────────
+  register: async (name, email, password) => {
+    set({ isLoading: true, error: null });
+    try {
+      const user = await registerWithEmail(name, email, password);
+      set({ user, isAuthenticated: true, isLoading: false });
+    } catch (e: any) {
+      const message = firebaseErrorMessage(e.code);
+      set({ isLoading: false, error: message });
+      throw new Error(message);
+    }
+  },
+
+  // ─── Logout ───────────────────────────────────────────────────────────────
+  logout: async () => {
+    await firebaseLogout();
     set({ user: null, isAuthenticated: false });
   },
 
-  updateProfile: (updates) => {
+  clearError: () => set({ error: null }),
+
+  updateProfile: (updates) =>
     set((state) => ({
       user: state.user ? { ...state.user, ...updates } : null,
-    }));
-  },
+    })),
 }));
+
+// ─── Human-readable Firebase error messages ───────────────────────────────────
+
+function firebaseErrorMessage(code: string): string {
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'Invalid email address.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Incorrect email or password.';
+    case 'auth/email-already-in-use':
+      return 'An account already exists with this email.';
+    case 'auth/weak-password':
+      return 'Password must be at least 6 characters.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Try again later.';
+    default:
+      return 'Something went wrong. Please try again.';
+  }
+}

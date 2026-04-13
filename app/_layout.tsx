@@ -1,4 +1,5 @@
 import { Palette } from '@/constants/theme';
+import { useAuthStore } from '@/store/useAuthStore';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -13,8 +14,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Prevent splash screen from hiding until fonts are loaded
 SplashScreen.preventAutoHideAsync();
@@ -41,6 +42,14 @@ export default function RootLayout() {
     Inter_700Bold,
     Inter_900Black,
   });
+
+  const initialize = useAuthStore((s) => s.initialize);
+
+  useEffect(() => {
+    // Start Firebase auth listener — restores session on every launch
+    const unsubscribe = initialize();
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (fontsLoaded) {
