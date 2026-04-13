@@ -24,9 +24,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-// inMemoryPersistence: session lasts while the app is open.
-// NOTE: Firebase v12 JS SDK removed getReactNativePersistence from firebase/auth.
-// For cross-restart persistence, switch to @react-native-firebase in a dev build.
+
 
 export const auth = initializeAuth(app, {
   persistence: inMemoryPersistence,

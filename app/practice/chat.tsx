@@ -2,6 +2,7 @@ import { ChatBubble, TypingIndicator } from '@/components/ui/ChatBubble';
 import { FeedbackPanel } from '@/components/ui/FeedbackPanel';
 import { FontSize, Fonts, Palette, Radius, Shadows, Spacing } from '@/constants/theme';
 import { AIService } from '@/services/ai.service';
+import { AudioService } from '@/services/audio.service';
 import { useConversationStore } from '@/store/useConversationStore';
 import { Message, ScenarioType } from '@/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -25,6 +26,8 @@ export default function ChatScreen() {
     scenarioId: string;
     scenarioType: string;
     scenarioTitle: string;
+    resume?: string;
+    jobDescription?: string;
   }>();
 
   const {
@@ -41,33 +44,52 @@ export default function ChatScreen() {
   } = useConversationStore();
 
   const [inputText, setInputText] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const scenarioType = (params.scenarioType || 'interview') as ScenarioType;
   const scenarioTitle = params.scenarioTitle || 'Practice';
 
   // Start session and send opening message
   useEffect(() => {
-    startSession(scenarioType, scenarioTitle);
+    const { activeSession } = useConversationStore.getState();
+    
+    if (!activeSession || activeSession.scenarioType !== scenarioType) {
+      const context = params.resume || params.jobDescription 
+        ? { resume: params.resume, jobDescription: params.jobDescription } 
+        : undefined;
+      
+      startSession(scenarioType, scenarioTitle, context);
+    }
 
-    // AI sends the opening message
-    const openingText = AIService.getOpeningMessage(scenarioType);
-    const openingMessage: Message = {
-      id: `msg_opening_${Date.now()}`,
-      role: 'ai',
-      text: openingText,
-      timestamp: Date.now(),
-    };
+    if (messages.length === 0) {
+      const openingText = AIService.getOpeningMessage(scenarioType);
+      const openingMessage: Message = {
+        id: `msg_opening_${Date.now()}`,
+        role: 'ai',
+        text: openingText,
+        timestamp: Date.now(),
+      };
 
-    // Simulate brief typing delay for the opening
-    setIsAiTyping(true);
-    const timer = setTimeout(() => {
-      addAiMessage(openingMessage);
-    }, 1200);
+      setIsAiTyping(true);
+      const timer = setTimeout(() => {
+        addAiMessage(openingMessage);
+        // 🔊 Auto-speak opening message
+        AudioService.speak(openingText);
+      }, 1200);
 
-    return () => clearTimeout(timer);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Handle AI Speaking when a new AI message arrives
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === 'ai') {
+      AudioService.speak(lastMessage.text);
+    }
+  }, [messages.length]);
+
+  // Auto-scroll to bottom
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
@@ -76,8 +98,8 @@ export default function ChatScreen() {
     }
   }, [messages.length, isAiTyping]);
 
-  const handleSend = useCallback(async () => {
-    const text = inputText.trim();
+  const handleSend = useCallback(async (textOverride?: string) => {
+    const text = textOverride || inputText.trim();
     if (!text || isAiTyping) return;
 
     setInputText('');
@@ -85,7 +107,13 @@ export default function ChatScreen() {
     setIsAiTyping(true);
 
     try {
-      const response = await AIService.processMessage(text, scenarioType, messages);
+      const { activeSession } = useConversationStore.getState();
+      const response = await AIService.processMessage(
+        text, 
+        scenarioType, 
+        messages, 
+        activeSession?.context
+      );
 
       const aiMessage: Message = {
         id: `msg_ai_${Date.now()}`,
@@ -108,7 +136,31 @@ export default function ChatScreen() {
     }
   }, [inputText, isAiTyping, messages, scenarioType]);
 
+  const toggleRecording = async () => {
+    if (isRecording) {
+      setIsRecording(false);
+      const uri = await AudioService.stopRecording();
+      if (uri) {
+        // 🎙️ Placeholder for Speech-to-Text
+        // In production, send 'uri' to Whisper or Gemini API
+        console.log('Audio recorded at:', uri);
+        Alert.alert('Voice Recorded', 'Direct Speech-to-Text integration coming next. Sending transcribed text for now.');
+        // For simulation, let's just trigger a sample response
+        handleSend("I'm responding with my voice."); 
+      }
+    } else {
+      const granted = await AudioService.requestPermissions();
+      if (granted) {
+        setIsRecording(true);
+        await AudioService.startRecording();
+      } else {
+        Alert.alert('Permission Denied', 'Please enable microphone access in settings.');
+      }
+    }
+  };
+
   const handleEndSession = () => {
+    AudioService.stopSpeaking();
     const aiMessages = messages.filter((m) => m.role === 'ai' && m.score !== undefined);
     const avgScore =
       aiMessages.length > 0
@@ -136,11 +188,6 @@ export default function ChatScreen() {
     );
   };
 
-  // Find the feedback for the active message
-  const feedbackMessage = activeFeedbackMessageId
-    ? messages.find((m) => m.id === activeFeedbackMessageId)
-    : null;
-
   const renderMessage = ({ item }: { item: Message }) => (
     <ChatBubble
       message={item}
@@ -151,6 +198,11 @@ export default function ChatScreen() {
       }
     />
   );
+
+  // Find the feedback for the active message
+  const feedbackMessage = activeFeedbackMessageId
+    ? messages.find((m) => m.id === activeFeedbackMessageId)
+    : null;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -164,7 +216,7 @@ export default function ChatScreen() {
             {scenarioTitle}
           </Text>
           <Text style={styles.headerSubtitle}>
-            {messages.filter((m) => m.role === 'user').length} messages
+            Voice Interactive Mode
           </Text>
         </View>
         <TouchableOpacity onPress={handleEndSession} style={styles.endButton}>
@@ -188,31 +240,43 @@ export default function ChatScreen() {
           ListFooterComponent={isAiTyping ? <TypingIndicator /> : null}
         />
 
-        {/* ─── Input Bar ─────────────────────────────────────────────────── */}
+        {/* ─── Voice / Input Bar ─────────────────────────────────────────── */}
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
             <TextInput
               style={styles.input}
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Type your response..."
+              placeholder={isRecording ? "Listening..." : "Speak or type..."}
               placeholderTextColor={Palette.textTertiary}
               multiline
               maxLength={1000}
-              editable={!isAiTyping}
-              onSubmitEditing={handleSend}
+              editable={!isAiTyping && !isRecording}
+              onSubmitEditing={() => handleSend()}
               blurOnSubmit={false}
             />
+            
             <TouchableOpacity
-              onPress={handleSend}
-              disabled={!inputText.trim() || isAiTyping}
+              onPress={toggleRecording}
               style={[
-                styles.sendButton,
-                (!inputText.trim() || isAiTyping) && styles.sendButtonDisabled,
+                styles.micButton,
+                isRecording && styles.micButtonActive,
+                isAiTyping && styles.micButtonDisabled,
               ]}
+              disabled={isAiTyping}
             >
-              <Text style={styles.sendIcon}>↑</Text>
+              <Text style={styles.micIcon}>{isRecording ? '⏹' : '🎤'}</Text>
             </TouchableOpacity>
+
+            {!isRecording && inputText.trim() && (
+              <TouchableOpacity
+                onPress={() => handleSend()}
+                disabled={isAiTyping}
+                style={[styles.sendButton, isAiTyping && styles.sendButtonDisabled]}
+              >
+                <Text style={styles.sendIcon}>↑</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -235,8 +299,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Palette.background,
   },
-
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -270,8 +332,9 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontFamily: Fonts?.sans,
     fontSize: FontSize.sm,
-    color: Palette.textTertiary,
+    color: Palette.primary,
     marginTop: 1,
+    fontWeight: '600',
   },
   endButton: {
     paddingHorizontal: Spacing.lg,
@@ -284,31 +347,27 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Palette.error,
   },
-
-  // Chat
   chatContainer: {
     flex: 1,
   },
   messagesList: {
     paddingVertical: Spacing.lg,
   },
-
-  // Input
   inputContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: Palette.border,
     backgroundColor: Palette.surface,
   },
   inputWrapper: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     backgroundColor: Palette.surfaceLight,
     borderRadius: Radius.xxl,
     paddingLeft: Spacing.lg,
-    paddingRight: Spacing.xs,
-    paddingVertical: Spacing.xs,
+    paddingRight: Spacing.sm,
+    paddingVertical: Spacing.sm,
     borderWidth: 1,
     borderColor: Palette.border,
   },
@@ -318,22 +377,43 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Palette.textPrimary,
     maxHeight: 100,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
-  sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  micButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Palette.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Shadows.sm,
+    marginLeft: Spacing.xs,
+    ...Shadows.md,
+  },
+  micButtonActive: {
+    backgroundColor: Palette.error,
+    transform: [{ scale: 1.1 }],
+  },
+  micButtonDisabled: {
+    backgroundColor: Palette.surfaceElevated,
+  },
+  micIcon: {
+    fontSize: 22,
+    color: '#FFFFFF',
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Palette.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing.xs,
   },
   sendButtonDisabled: {
     backgroundColor: Palette.surfaceElevated,
   },
   sendIcon: {
-    fontSize: 18,
+    fontSize: 20,
     color: '#FFFFFF',
     fontWeight: 'bold',
   },

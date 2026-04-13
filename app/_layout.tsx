@@ -89,6 +89,12 @@ export default function RootLayout() {
               animation: 'slide_from_right',
             }}
           />
+          <Stack.Screen
+            name="practice/setup"
+            options={{
+              animation: 'slide_from_right',
+            }}
+          />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style="light" />

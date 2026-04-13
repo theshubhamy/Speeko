@@ -21,7 +21,7 @@ export default function ScenariosScreen() {
 
   const handleSelectScenario = (scenarioId: string, scenarioType: ScenarioType, scenarioTitle: string) => {
     router.push({
-      pathname: '/practice/chat',
+      pathname: '/practice/setup',
       params: { scenarioId, scenarioType, scenarioTitle },
     });
   };

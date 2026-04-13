@@ -13,7 +13,7 @@ interface ConversationState {
   sessions: Session[];
 
   // Actions
-  startSession: (scenarioType: ScenarioType, scenarioTitle: string) => void;
+  startSession: (scenarioType: ScenarioType, scenarioTitle: string, context?: Session['context']) => void;
   addUserMessage: (text: string) => void;
   addAiMessage: (message: Message) => void;
   setIsAiTyping: (typing: boolean) => void;
@@ -34,13 +34,14 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   activeFeedbackMessageId: null,
   sessions: [],
 
-  startSession: (scenarioType, scenarioTitle) => {
+  startSession: (scenarioType, scenarioTitle, context) => {
     const session: Session = {
       id: generateSessionId(),
       userId: 'user_1', // Replace with auth
       scenarioType,
       scenarioTitle,
       messages: [],
+      context,
       createdAt: Date.now(),
       isActive: true,
     };

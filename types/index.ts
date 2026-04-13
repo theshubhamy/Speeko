@@ -31,6 +31,11 @@ export interface Message {
   timestamp: number;
 }
 
+export interface SessionContext {
+  resume?: string;
+  jobDescription?: string;
+}
+
 // ─── Session Types ───────────────────────────────────────────────────────────
 
 export interface Session {
@@ -39,6 +44,7 @@ export interface Session {
   scenarioType: ScenarioType;
   scenarioTitle: string;
   messages: Message[];
+  context?: SessionContext;
   score?: number;
   createdAt: number;
   endedAt?: number;
