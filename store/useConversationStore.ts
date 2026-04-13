@@ -23,6 +23,7 @@ interface ConversationState {
   endSession: (score?: number) => void;
   clearActiveSession: () => void;
   fetchSessions: (userId: string) => Promise<void>;
+  resumeSession: (session: Session) => void;
   isFetchingSessions: boolean;
 }
 
@@ -166,5 +167,14 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       console.error('Failed to fetch sessions:', error);
       set({ isFetchingSessions: false });
     }
+  },
+
+  resumeSession: (session) => {
+    set({
+      activeSession: session,
+      messages: session.messages,
+      showFeedback: false,
+      activeFeedbackMessageId: null,
+    });
   },
 }));

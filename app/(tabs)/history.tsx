@@ -1,12 +1,14 @@
 import { FontSize, Fonts, Palette, Radius, ScenarioColors, Shadows, Spacing } from '@/constants/theme';
-import { useConversationStore } from '@/store/useConversationStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useConversationStore } from '@/store/useConversationStore';
+import { useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HistoryScreen() {
-  const { sessions, fetchSessions, isFetchingSessions } = useConversationStore();
+  const router = useRouter();
+  const { sessions, fetchSessions, isFetchingSessions, resumeSession } = useConversationStore();
   const userId = useAuthStore((s) => s.user?.id);
 
   useEffect(() => {
@@ -41,6 +43,10 @@ export default function HistoryScreen() {
     client: '🌐',
     workplace: '🏢',
   };
+  const handleResumeSession = (session: any) => {
+    resumeSession(session);
+    router.push('/practice/chat');
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -74,6 +80,7 @@ export default function HistoryScreen() {
                 key={session.id}
                 style={[styles.sessionCard, Shadows.sm]}
                 activeOpacity={0.8}
+                onPress={() => handleResumeSession(session)}
               >
                 <View style={styles.sessionHeader}>
                   <View style={[styles.sessionIcon, { backgroundColor: colors.accent + '20' }]}>

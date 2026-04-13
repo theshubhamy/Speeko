@@ -16,14 +16,29 @@ import { Session, Message } from '@/types';
 
 const SESSIONS_COLLECTION = 'sessions';
 
+// Helper to remove undefined fields recursively for Firestore
+function sanitizeData(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeData);
+  
+  const result: any = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      result[key] = sanitizeData(obj[key]);
+    }
+  }
+  return result;
+}
+
 export const SessionService = {
   /**
    * Create a new session in Firestore
    */
   async createSession(session: Session): Promise<void> {
     const sessionRef = doc(db, SESSIONS_COLLECTION, session.id);
+    const sanitized = sanitizeData(session);
     await setDoc(sessionRef, {
-      ...session,
+      ...sanitized,
       createdAt: serverTimestamp(),
     });
   },
@@ -33,8 +48,9 @@ export const SessionService = {
    */
   async addMessage(sessionId: string, message: Message): Promise<void> {
     const sessionRef = doc(db, SESSIONS_COLLECTION, sessionId);
+    const sanitizedMsg = sanitizeData(message);
     await updateDoc(sessionRef, {
-      messages: arrayUnion(message),
+      messages: arrayUnion(sanitizedMsg),
     });
   },
 
