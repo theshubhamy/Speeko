@@ -1,16 +1,11 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AIResponse, Message, ScenarioType, Session } from '@/types';
+import * as FileSystem from 'expo-file-system';
 
-// ─── Gemini Initialization ───────────────────────────────────────────────────
+// ─── Gemini Configuration ───────────────────────────────────────────────────
 
 const GEMINI_API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({
-  model: 'gemini-1.5-flash',
-  generationConfig: {
-    responseMimeType: 'application/json',
-  },
-});
+const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const MODEL_ID = 'gemini-3.1-flash-lite-preview';
 
 // ─── Mock AI Responses (Opening fallback) ───────────────────────────────────
 
@@ -49,8 +44,59 @@ export const AIService = {
   },
 
   /**
-   * Process user message and generate AI response
-   * Integrated with Gemini Pro (direct client-side)
+   * 🎙️ Transcribe Audio using Gemini REST API (Fetch)
+   */
+  async transcribeAudio(uri: string): Promise<string> {
+    try {
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const response = await fetch(
+        `${BASE_URL}/${MODEL_ID}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: 'audio/m4a',
+                    data: base64,
+                  },
+                },
+                { text: "Transcribe the audio accurately. Keep any filler words like 'uh' or 'um'. Return ONLY the transcribed text, nothing else." },
+              ],
+            }],
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.error) {
+        console.error('Gemini Transcription API Error:', result.error);
+        throw new Error(`API Error: ${result.error.message}`);
+      }
+
+      const text = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        console.warn('Gemini empty transcription result:', JSON.stringify(result, null, 2));
+        throw new Error('Gemini returned empty transcription');
+      }
+
+      // Clean markdown if Gemini wraps it
+      return text.replace(/```text|```/g, '').trim();
+    } catch (error: any) {
+      console.error('Transcription Flow Error:', error.message);
+      throw new Error('Failed to transcribe audio');
+    }
+  },
+
+  /**
+   * Process user message and generate AI response via REST API (Fetch)
    */
   async processMessage(
     userText: string,
@@ -92,24 +138,60 @@ RESPONSE FORMAT (Strict JSON):
 
     try {
       // 2. Format history for Gemini
-      const chatHistory = history.map((msg) => ({
+      let chatHistory = history.map((msg) => ({
         role: msg.role === 'ai' ? 'model' : 'user',
         parts: [{ text: msg.text }],
       }));
 
-      // 3. Start Chat with Gemini
-      const chat = model.startChat({
-        history: chatHistory,
-        systemInstruction: systemInstruction,
+      // Gemini requires the history to start with a 'user' message.
+      if (chatHistory.length > 0 && chatHistory[0].role === 'model') {
+        chatHistory.shift();
+      }
+
+      // Add the latest user message
+      chatHistory.push({
+        role: 'user',
+        parts: [{ text: userText }]
       });
 
-      const result = await chat.sendMessage(userText);
-      const responseText = result.response.text();
+      // 3. Make REST Request using Fetch
+      const response = await fetch(
+        `${BASE_URL}/${MODEL_ID}:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: chatHistory,
+            systemInstruction: {
+              // Note: role is usually omitted for systemInstruction in REST
+              parts: [{ text: systemInstruction }],
+            },
+            generationConfig: {
+              responseMimeType: 'application/json',
+            },
+          }),
+        }
+      );
 
-      // Parse JSON from Gemini
-      return JSON.parse(responseText);
-    } catch (error) {
-      console.error('Gemini Service Error:', error);
+      const result = await response.json();
+
+      if (result.error) {
+        console.error('Gemini Chat API Error:', result.error);
+        throw new Error(`API Error: ${result.error.message}`);
+      }
+
+      const responseText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!responseText) {
+        console.warn('Gemini empty response result:', JSON.stringify(result, null, 2));
+        throw new Error('Gemini returned empty response');
+      }
+
+      // 4. Sanitize and Parse JSON
+      const cleanJson = responseText.replace(/```json|```/g, '').trim();
+      return JSON.parse(cleanJson);
+    } catch (error: any) {
+      console.error('Gemini REST Error:', error.message);
       throw error;
     }
   },

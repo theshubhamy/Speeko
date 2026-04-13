@@ -45,6 +45,7 @@ export default function ChatScreen() {
 
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [lastSentText, setLastSentText] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const scenarioType = (params.scenarioType || 'interview') as ScenarioType;
   const scenarioTitle = params.scenarioTitle || 'Practice';
@@ -98,12 +99,16 @@ export default function ChatScreen() {
     }
   }, [messages.length, isAiTyping]);
 
-  const handleSend = useCallback(async (textOverride?: string) => {
+  const handleSend = useCallback(async (textOverride?: string, isRetry = false) => {
     const text = textOverride || inputText.trim();
     if (!text || isAiTyping) return;
 
-    setInputText('');
-    addUserMessage(text);
+    if (!isRetry) {
+      setInputText('');
+      addUserMessage(text);
+      setLastSentText(text);
+    }
+    
     setIsAiTyping(true);
 
     try {
@@ -130,23 +135,43 @@ export default function ChatScreen() {
       addAiMessage({
         id: `msg_error_${Date.now()}`,
         role: 'ai',
-        text: "I'm having trouble responding right now. Please try again.",
+        text: "I'm having trouble responding right now. Please check your connection and tap to retry.",
         timestamp: Date.now(),
       });
+    } finally {
+      setIsAiTyping(false);
     }
   }, [inputText, isAiTyping, messages, scenarioType]);
+
+  const handleRetry = () => {
+    if (lastSentText) {
+      handleSend(lastSentText, true);
+    }
+  };
 
   const toggleRecording = async () => {
     if (isRecording) {
       setIsRecording(false);
       const uri = await AudioService.stopRecording();
       if (uri) {
-        // 🎙️ Placeholder for Speech-to-Text
-        // In production, send 'uri' to Whisper or Gemini API
-        console.log('Audio recorded at:', uri);
-        Alert.alert('Voice Recorded', 'Direct Speech-to-Text integration coming next. Sending transcribed text for now.');
-        // For simulation, let's just trigger a sample response
-        handleSend("I'm responding with my voice."); 
+        setIsAiTyping(true);
+        try {
+          // 🎙️ Transcribe audio using Gemini
+          const transcript = await AIService.transcribeAudio(uri);
+          
+          if (transcript && transcript.length > 0) {
+            console.log('Transcribed text:', transcript);
+            // sending transcribed text for processing
+            handleSend(transcript);
+          } else {
+            setIsAiTyping(false);
+            Alert.alert('Speech Not Recognized', "I couldn't hear any clear speech. Please try again or type your message.");
+          }
+        } catch (error) {
+          setIsAiTyping(false);
+          console.error('Transcription error:', error);
+          Alert.alert('Error', 'Failed to transcribe audio. Please check your internet connection and try again.');
+        }
       }
     } else {
       const granted = await AudioService.requestPermissions();
@@ -196,6 +221,7 @@ export default function ChatScreen() {
           ? () => setShowFeedback(true, item.id)
           : undefined
       }
+      onRetry={item.id.startsWith('msg_error') ? handleRetry : undefined}
     />
   );
 

@@ -1,14 +1,15 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { Palette, Spacing, Radius, FontSize, Fonts } from '@/constants/theme';
 import { Message } from '@/types';
 
 interface ChatBubbleProps {
   message: Message;
   onFeedbackPress?: () => void;
+  onRetry?: () => void;
 }
 
-export function ChatBubble({ message, onFeedbackPress }: ChatBubbleProps) {
+export function ChatBubble({ message, onFeedbackPress, onRetry }: ChatBubbleProps) {
   const isUser = message.role === 'user';
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(isUser ? 20 : -20)).current;
@@ -62,6 +63,12 @@ export function ChatBubble({ message, onFeedbackPress }: ChatBubbleProps) {
               </Text>
             )}
           </View>
+        )}
+
+        {onRetry && (
+          <TouchableOpacity onPress={onRetry} style={styles.retryBadge}>
+            <Text style={styles.scoreText}>Retry ↺</Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -180,6 +187,14 @@ const styles = StyleSheet.create({
     fontFamily: Fonts?.sansBold,
     fontSize: FontSize.xs,
     color: '#FFFFFF',
+  },
+  retryBadge: {
+    backgroundColor: Palette.accent,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 4,
+    marginTop: Spacing.sm,
+    alignSelf: 'flex-start',
   },
   feedbackLink: {
     fontFamily: Fonts?.sansMedium,

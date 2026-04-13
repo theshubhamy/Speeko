@@ -1,4 +1,10 @@
-import { Audio } from 'expo-av';
+import { 
+  setAudioModeAsync, 
+  requestRecordingPermissionsAsync, 
+  AudioModule,
+  AudioRecorder, 
+  RecordingPresets 
+} from 'expo-audio';
 import * as Speech from 'expo-speech';
 
 /**
@@ -6,14 +12,14 @@ import * as Speech from 'expo-speech';
  * Handles high-quality voice recording and Text-to-Speech playback.
  */
 class AudioServiceManager {
-  private _recording: Audio.Recording | null = null;
+  private _recorder: AudioRecorder | null = null;
 
   /**
    * Request microphone permissions
    */
   async requestPermissions() {
-    const { status } = await Audio.requestPermissionsAsync();
-    return status === 'granted';
+    const response = await requestRecordingPermissionsAsync();
+    return response.status === 'granted';
   }
 
   /**
@@ -21,15 +27,15 @@ class AudioServiceManager {
    */
   async startRecording() {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      this._recording = recording;
+      this._recorder = new AudioModule.AudioRecorder(RecordingPresets.HIGH_QUALITY);
+      await this._recorder.prepareToRecordAsync();
+      this._recorder.record();
+
       console.log('Recording started');
     } catch (err) {
       console.error('Failed to start recording', err);
@@ -40,15 +46,15 @@ class AudioServiceManager {
    * Stop recording and return the URI of the audio file
    */
   async stopRecording(): Promise<string | null> {
-    if (!this._recording) return null;
+    if (!this._recorder) return null;
 
     try {
-      await this._recording.stopAndUnloadAsync();
-      const uri = this._recording.getURI();
-      this._recording = null;
-      
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
+      await this._recorder.stop();
+      const uri = this._recorder.uri;
+      this._recorder = null;
+
+      await setAudioModeAsync({
+        allowsRecording: false,
       });
 
       return uri;
