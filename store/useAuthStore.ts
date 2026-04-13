@@ -7,6 +7,7 @@ import {
   logout as firebaseLogout,
   onAuthStateChange,
   getAppUser,
+  updateUserProfile as firebaseUpdateUserProfile,
 } from '@/services/auth.service';
 import { auth } from '@/services/firebase';
 
@@ -99,10 +100,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 
-  updateProfile: (updates) =>
-    set((state) => ({
-      user: state.user ? { ...state.user, ...updates } : null,
-    })),
+  updateProfile: async (updates) => {
+    const user = get().user;
+    if (!user) return;
+
+    try {
+      await firebaseUpdateUserProfile(user.id, updates);
+      set((state) => ({
+        user: state.user ? { ...state.user, ...updates } : null,
+      }));
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    }
+  },
 }));
 
 // ─── Human-readable Firebase error messages ───────────────────────────────────

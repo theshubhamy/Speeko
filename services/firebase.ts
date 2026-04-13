@@ -1,5 +1,12 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getApps, initializeApp } from 'firebase/app';
-import { initializeAuth, inMemoryPersistence } from 'firebase/auth';
+import {
+  Auth,
+  getAuth,
+  initializeAuth,
+} from 'firebase/auth';
+// @ts-expect-error: getReactNativePersistence is not exported from the main entry point but is available in the RN entry point
+import { getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -25,10 +32,16 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
+let auth: Auth;
+try {
+  // @ts-ignore
+  const persistence = getReactNativePersistence(AsyncStorage);
+  auth = initializeAuth(app, { persistence });
+} catch (e) {
+  auth = getAuth(app);
+}
 
-export const auth = initializeAuth(app, {
-  persistence: inMemoryPersistence,
-});
+export { auth };
 
 // ─── Firestore ────────────────────────────────────────────────────────────────
 

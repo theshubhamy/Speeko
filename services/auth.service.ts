@@ -8,7 +8,7 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
 // ─── Map Firebase user → App user ────────────────────────────────────────────
@@ -94,6 +94,24 @@ export async function loginAsGuest(): Promise<User> {
 
 export async function logout(): Promise<void> {
   await signOut(auth);
+}
+
+// ─── Update Profile ───────────────────────────────────────────────────────────
+
+export async function updateUserProfile(uid: string, updates: Partial<User>): Promise<void> {
+  const fbUser = auth.currentUser;
+  
+  // Update Firebase Auth if name or avatar is changed
+  if (fbUser && (updates.name || updates.avatar)) {
+    await updateProfile(fbUser, {
+      displayName: updates.name || fbUser.displayName,
+      photoURL: updates.avatar || fbUser.photoURL,
+    });
+  }
+
+  // Update Firestore
+  const ref = doc(db, 'users', uid);
+  await updateDoc(ref, updates);
 }
 
 // ─── Auth state listener ──────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { Palette } from '@/constants/theme';
+import { ScenarioService } from '@/services/scenario.service';
 import { useAuthStore } from '@/store/useAuthStore';
 import {
   Inter_400Regular,
@@ -52,7 +53,11 @@ export default function RootLayout() {
   useEffect(() => {
     // Start Firebase auth listener — restores session on every launch
     const unsubscribe = initialize();
-    return unsubscribe;
+    
+    // Seed system scenarios (only creates if missing)
+    ScenarioService.seedScenarios().catch(console.error);
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {

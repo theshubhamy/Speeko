@@ -1,6 +1,6 @@
 // ─── Scenario Types ──────────────────────────────────────────────────────────
 
-export type ScenarioType = 'interview' | 'sales' | 'client' | 'workplace';
+export type ScenarioType = 'interview' | 'sales' | 'client' | 'workplace' | 'personal';
 
 export interface Scenario {
   id: string;
@@ -11,6 +11,8 @@ export interface Scenario {
   icon: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   estimatedMinutes: number;
+  createdBy?: string; // UID of user or null for system
+  isPublic?: boolean;
 }
 
 // ─── Message Types ───────────────────────────────────────────────────────────

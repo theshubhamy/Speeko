@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Palette, Spacing, Radius, FontSize, Fonts } from '@/constants/theme';
-import { SCENARIOS, SCENARIO_CATEGORIES } from '@/constants/scenarios';
 import { ScenarioDetailCard } from '@/components/ui/ScenarioCard';
+import { SCENARIOS, SCENARIO_CATEGORIES } from '@/constants/scenarios';
+import { FontSize, Fonts, Palette, Radius, Spacing } from '@/constants/theme';
 import { ScenarioType } from '@/types';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ScenariosScreen() {
   const router = useRouter();
