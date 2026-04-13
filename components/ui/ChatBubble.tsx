@@ -53,14 +53,37 @@ export function ChatBubble({ message, onFeedbackPress, onRetry }: ChatBubbleProp
           {message.text}
         </Text>
 
+        {/* 🎯 Next Question / Retry Question: Highly Prompted */}
+        {!isUser && message.nextQuestion && (
+          <View style={styles.questionBox}>
+            <Text style={styles.questionLabel}>
+              {message.score && message.score < 8 ? "RETRY THIS QUESTION:" : "NEXT QUESTION:"}
+            </Text>
+            <Text style={styles.questionText}>{message.nextQuestion}</Text>
+          </View>
+        )}
+
         {message.score !== undefined && (
           <View style={styles.scoreContainer}>
             <View style={styles.scoreBadge}>
               <Text style={styles.scoreText}>{message.score}/10</Text>
             </View>
-            {onFeedbackPress && (
-              <Text style={styles.feedbackLink} onPress={onFeedbackPress}>
-                View Feedback →
+          </View>
+        )}
+
+        {/* 📝 Inline Feedback */}
+        {!isUser && message.feedback && message.score !== undefined && message.score < 8 && (
+          <View style={styles.feedbackDetails}>
+            {message.feedback.grammar && (
+              <Text style={styles.feedbackItem}>
+                <Text style={styles.feedbackLabel}>Grammar: </Text>
+                {message.feedback.grammar}
+              </Text>
+            )}
+            {message.feedback.clarity && (
+              <Text style={styles.feedbackItem}>
+                <Text style={styles.feedbackLabel}>Clarity: </Text>
+                {message.feedback.clarity}
               </Text>
             )}
           </View>
@@ -242,5 +265,41 @@ const styles = StyleSheet.create({
     color: Palette.textSecondary,
     fontStyle: 'italic',
     lineHeight: 20,
+  },
+  feedbackDetails: {
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  feedbackItem: {
+    fontSize: FontSize.sm,
+    color: Palette.textSecondary,
+    marginBottom: 4,
+  },
+  feedbackLabel: {
+    fontFamily: Fonts?.sansBold,
+    color: Palette.accent,
+  },
+  questionBox: {
+    marginTop: Spacing.md,
+    padding: Spacing.lg,
+    backgroundColor: 'rgba(74, 144, 226, 0.1)', // Subtle primary tint
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(74, 144, 226, 0.3)',
+  },
+  questionLabel: {
+    fontFamily: Fonts?.sansBold,
+    fontSize: FontSize.xs,
+    color: Palette.primary,
+    marginBottom: 6,
+    letterSpacing: 1,
+  },
+  questionText: {
+    fontFamily: Fonts?.sansBold,
+    fontSize: FontSize.lg,
+    color: Palette.textPrimary,
+    lineHeight: 26,
   },
 });

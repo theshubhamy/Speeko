@@ -86,7 +86,10 @@ export default function ChatScreen() {
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.role === 'ai') {
-      AudioService.speak(lastMessage.text);
+      const fullSpeech = lastMessage.nextQuestion 
+        ? `${lastMessage.text} ${lastMessage.nextQuestion}`
+        : lastMessage.text;
+      AudioService.speak(fullSpeech);
     }
   }, [messages.length]);
 
@@ -127,6 +130,7 @@ export default function ChatScreen() {
         feedback: response.feedback,
         improvedAnswer: response.improvedAnswer,
         score: response.score,
+        nextQuestion: response.nextQuestion,
         timestamp: Date.now(),
       };
 

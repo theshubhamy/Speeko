@@ -28,6 +28,7 @@ export interface Message {
   feedback?: Feedback;
   improvedAnswer?: string;
   score?: number;
+  nextQuestion?: string;
   timestamp: number;
 }
 
@@ -72,4 +73,5 @@ export interface AIResponse {
   feedback: Feedback;
   improvedAnswer: string;
   score: number;
+  nextQuestion?: string;
 }

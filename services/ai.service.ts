@@ -119,17 +119,16 @@ export const AIService = {
    - You MUST calculate a score (1-10) based on grammar, vocabulary, and professional tone.
    - If Score is **LESS THAN 8**:
      - You MUST provide the "improvedAnswer".
-     - You MUST explicitly say: "That needs work. Here is how to say it better. Please try answering the **SAME question** again using my suggestion."
-     - **FORBIDDEN**: You are NOT allowed to ask a new question.
+     - You MUST explicitly provide feedback and then say: "Please try answering the **SAME question** again: [REPEATED QUESTION TEXT HERE] using my suggestion."
+     - **FORBIDDEN**: You are NOT allowed to move to a new topic.
    - If Score is **8 or HIGHER**:
      - You MUST congratulate them.
-     - You MUST then ask a **NEW question** for the next part of the ${scenarioType} scenario.
+     - You MUST then ask a **NEW question** for the next part of the ${scenarioType}.
 
 ### GUIDELINES
 - Be strict but encouraging.
-- Focus on Resume/JD relevance if provided.
-- Ensure "aiResponse" contains ONLY the feedback and the instruction for the next step.
-- The "improvedAnswer" should be natural, professional, and slightly challenging.
+- Focus on Resume/JD relevance.
+- Always repeat the question text clearly when asking for a retry so the user knows exactly what to say.
 
 CONTEXT:
 ${context?.resume ? `- USER RESUME: ${context.resume}` : ''}
@@ -137,11 +136,12 @@ ${context?.jobDescription ? `- TARGET JOB DESCRIPTION: ${context.jobDescription}
 
 ### RESPONSE FORMAT (Strict JSON)
 {
-  "aiResponse": "Brief feedback + The Instruction (e.g. 'Retry the same question' OR 'Excellent! Next question: [New Question]')",
+  "aiResponse": "Brief constructive feedback on the user's performance and an encouraging lead-in to the question.",
+  "nextQuestion": "The EXACT question text to be answered next (e.g. 'Can you tell me about yourself?')",
   "feedback": {
-    "grammar": "Direct list of mistakes or 'Perfect'",
-    "clarity": "How to sound more native/professional",
-    "suggestion": "Specific tip for improvement"
+    "grammar": "Direct list of mistakes",
+    "clarity": "How to sound more professional",
+    "suggestion": "Specific tip"
   },
   "improvedAnswer": "The perfect version of the user's last answer",
   "score": 1-10
