@@ -31,6 +31,7 @@ export interface Message {
   improvedAnswer?: string;
   score?: number;
   nextQuestion?: string;
+  audioDuration?: number; // seconds – set on voice messages
   timestamp: number;
 }
 

@@ -53,11 +53,22 @@ export function ChatBubble({ message, onFeedbackPress, onRetry }: ChatBubbleProp
           {message.text}
         </Text>
 
+        {/* 🎤 Voice message duration */}
+        {isUser && message.audioDuration !== undefined && message.audioDuration > 0 && (
+          <View style={styles.audioBadge}>
+            <Text style={styles.audioBadgeIcon}>🎤</Text>
+            <Text style={styles.audioBadgeText}>
+              {String(Math.floor(message.audioDuration / 60)).padStart(2, '0')}:
+              {String(message.audioDuration % 60).padStart(2, '0')}
+            </Text>
+          </View>
+        )}
+
         {/* 🎯 Next Question / Retry Question: Highly Prompted */}
         {!isUser && message.nextQuestion && (
           <View style={styles.questionBox}>
             <Text style={styles.questionLabel}>
-              {message.score && message.score < 8 ? "RETRY THIS QUESTION:" : "NEXT QUESTION:"}
+              {message.score !== undefined && message.score < 8 ? "RETRY THIS QUESTION:" : "NEXT QUESTION:"}
             </Text>
             <Text style={styles.questionText}>{message.nextQuestion}</Text>
           </View>
@@ -86,11 +97,17 @@ export function ChatBubble({ message, onFeedbackPress, onRetry }: ChatBubbleProp
                 {message.feedback.clarity}
               </Text>
             )}
+            {message.feedback.suggestion && (
+              <Text style={styles.feedbackItem}>
+                <Text style={styles.feedbackLabel}>Suggestion: </Text>
+                {message.feedback.suggestion}
+              </Text>
+            )}
           </View>
         )}
 
         {/* 💡 Suggested Answer: Visible directly if score is low */}
-        {!isUser && message.improvedAnswer && message.score && message.score < 8 && (
+        {!isUser && message.improvedAnswer && message.score !== undefined && message.score < 8 && (
           <View style={styles.suggestionBox}>
             <Text style={styles.suggestionLabel}>Suggested Answer:</Text>
             <Text style={styles.suggestionText}>"{message.improvedAnswer}"</Text>
@@ -154,7 +171,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     marginBottom: Spacing.md,
-    paddingHorizontal: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
     alignItems: 'flex-end',
   },
   userContainer: {
@@ -164,8 +181,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   avatarContainer: {
-    width: 32,
-    height: 32,
+    width: 20,
+    height: 20,
     borderRadius: Radius.full,
     backgroundColor: Palette.surfaceLight,
     alignItems: 'center',
@@ -173,7 +190,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   avatar: {
-    fontSize: 16,
+    fontSize: 12,
   },
   bubble: {
     maxWidth: '72%',
@@ -301,5 +318,24 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     color: Palette.textPrimary,
     lineHeight: 26,
+  },
+
+  // ─── Voice message audio duration ──────────────────────────
+  audioBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+    alignSelf: 'flex-end',
+    gap: 4,
+    opacity: 0.75,
+  },
+  audioBadgeIcon: {
+    fontSize: 11,
+  },
+  audioBadgeText: {
+    fontFamily: Fonts?.sansMedium,
+    fontSize: FontSize.xs,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
 });

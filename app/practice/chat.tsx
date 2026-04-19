@@ -9,6 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -45,6 +46,9 @@ export default function ChatScreen() {
 
   const [inputText, setInputText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const recordingTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   const [lastSentText, setLastSentText] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const scenarioType = (params.scenarioType || 'interview') as ScenarioType;
@@ -102,13 +106,19 @@ export default function ChatScreen() {
     }
   }, [messages.length, isAiTyping]);
 
-  const handleSend = useCallback(async (textOverride?: string, isRetry = false) => {
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+    const secs = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+  };
+
+  const handleSend = useCallback(async (textOverride?: string, isRetry = false, duration?: number) => {
     const text = textOverride || inputText.trim();
     if (!text || isAiTyping) return;
 
     if (!isRetry) {
       setInputText('');
-      addUserMessage(text);
+      addUserMessage(text, duration);
       setLastSentText(text);
     }
     
@@ -153,39 +163,75 @@ export default function ChatScreen() {
     }
   };
 
-  const toggleRecording = async () => {
+  // Start pulsing animation when recording
+  useEffect(() => {
     if (isRecording) {
-      setIsRecording(false);
-      const uri = await AudioService.stopRecording();
-      if (uri) {
-        setIsAiTyping(true);
-        try {
-          // 🎙️ Transcribe audio using Gemini
-          const transcript = await AIService.transcribeAudio(uri);
-          
-          if (transcript && transcript.length > 0) {
-            console.log('Transcribed text:', transcript);
-            // sending transcribed text for processing
-            handleSend(transcript);
-          } else {
-            setIsAiTyping(false);
-            Alert.alert('Speech Not Recognized', "I couldn't hear any clear speech. Please try again or type your message.");
-          }
-        } catch (error) {
-          setIsAiTyping(false);
-          console.error('Transcription error:', error);
-          Alert.alert('Error', 'Failed to transcribe audio. Please check your internet connection and try again.');
-        }
-      }
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.4, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      );
+      pulse.start();
+      return () => pulse.stop();
     } else {
-      const granted = await AudioService.requestPermissions();
-      if (granted) {
-        setIsRecording(true);
-        await AudioService.startRecording();
-      } else {
-        Alert.alert('Permission Denied', 'Please enable microphone access in settings.');
+      pulseAnim.setValue(1);
+    }
+  }, [isRecording]);
+
+  const startRecording = async () => {
+    const granted = await AudioService.requestPermissions();
+    if (!granted) {
+      Alert.alert('Permission Denied', 'Please enable microphone access in settings.');
+      return;
+    }
+    setRecordingSeconds(0);
+    setIsRecording(true);
+    await AudioService.startRecording();
+
+    // Live timer
+    recordingTimer.current = setInterval(() => {
+      setRecordingSeconds((s) => s + 1);
+    }, 1000);
+  };
+
+  const stopRecording = async () => {
+    if (recordingTimer.current) {
+      clearInterval(recordingTimer.current);
+      recordingTimer.current = null;
+    }
+    const duration = recordingSeconds;
+    setIsRecording(false);
+    setRecordingSeconds(0);
+
+    const uri = await AudioService.stopRecording();
+    if (uri) {
+      setIsAiTyping(true);
+      try {
+        const transcript = await AIService.transcribeAudio(uri);
+        if (transcript && transcript.length > 0) {
+          console.log('Transcribed text:', transcript);
+          handleSend(transcript, false, duration);
+        } else {
+          setIsAiTyping(false);
+          Alert.alert('Speech Not Recognized', "I couldn't hear any clear speech. Please try again or type your message.");
+        }
+      } catch (error) {
+        setIsAiTyping(false);
+        console.error('Transcription error:', error);
+        Alert.alert('Error', 'Failed to transcribe audio. Please check your internet connection and try again.');
       }
     }
+  };
+
+  const cancelRecording = async () => {
+    if (recordingTimer.current) {
+      clearInterval(recordingTimer.current);
+      recordingTimer.current = null;
+    }
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    await AudioService.stopRecording(); // discard
   };
 
   const handleEndSession = () => {
@@ -273,39 +319,57 @@ export default function ChatScreen() {
         {/* ─── Voice / Input Bar ─────────────────────────────────────────── */}
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder={isRecording ? "Listening..." : "Speak or type..."}
-              placeholderTextColor={Palette.textTertiary}
-              multiline
-              maxLength={1000}
-              editable={!isAiTyping && !isRecording}
-              onSubmitEditing={() => handleSend()}
-              blurOnSubmit={false}
-            />
-            
-            <TouchableOpacity
-              onPress={toggleRecording}
-              style={[
-                styles.micButton,
-                isRecording && styles.micButtonActive,
-                isAiTyping && styles.micButtonDisabled,
-              ]}
-              disabled={isAiTyping}
-            >
-              <Text style={styles.micIcon}>{isRecording ? '⏹' : '🎤'}</Text>
-            </TouchableOpacity>
+            {isRecording ? (
+              /* ── WhatsApp-style Recording State ──────────────── */
+              <View style={styles.recordingBar}>
+                <TouchableOpacity onPress={cancelRecording} style={styles.cancelButton}>
+                  <Text style={styles.cancelIcon}>✕</Text>
+                </TouchableOpacity>
 
-            {!isRecording && inputText.trim() && (
-              <TouchableOpacity
-                onPress={() => handleSend()}
-                disabled={isAiTyping}
-                style={[styles.sendButton, isAiTyping && styles.sendButtonDisabled]}
-              >
-                <Text style={styles.sendIcon}>↑</Text>
-              </TouchableOpacity>
+                <Animated.View style={[styles.recordingDot, { transform: [{ scale: pulseAnim }] }]} />
+                <Text style={styles.recordingTimer}>{formatTime(recordingSeconds)}</Text>
+
+                <TouchableOpacity onPress={stopRecording} style={styles.stopSendButton}>
+                  <Text style={styles.sendIcon}>↑</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              /* ── Normal Input State ─────────────────────────── */
+              <>
+                <TextInput
+                  style={styles.input}
+                  value={inputText}
+                  onChangeText={setInputText}
+                  placeholder="Speak or type..."
+                  placeholderTextColor={Palette.textTertiary}
+                  multiline
+                  maxLength={1000}
+                  editable={!isAiTyping}
+                  onSubmitEditing={() => handleSend()}
+                  blurOnSubmit={false}
+                />
+
+                <TouchableOpacity
+                  onPress={startRecording}
+                  style={[
+                    styles.micButton,
+                    isAiTyping && styles.micButtonDisabled,
+                  ]}
+                  disabled={isAiTyping}
+                >
+                  <Text style={styles.micIcon}>🎤</Text>
+                </TouchableOpacity>
+
+                {inputText.trim() ? (
+                  <TouchableOpacity
+                    onPress={() => handleSend()}
+                    disabled={isAiTyping}
+                    style={[styles.sendButton, isAiTyping && styles.sendButtonDisabled]}
+                  >
+                    <Text style={styles.sendIcon}>↑</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </>
             )}
           </View>
         </View>
@@ -419,10 +483,6 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.xs,
     ...Shadows.md,
   },
-  micButtonActive: {
-    backgroundColor: Palette.error,
-    transform: [{ scale: 1.1 }],
-  },
   micButtonDisabled: {
     backgroundColor: Palette.surfaceElevated,
   },
@@ -446,5 +506,48 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#FFFFFF',
     fontWeight: 'bold',
+  },
+
+  // ─── WhatsApp-style Recording Bar ──────────────────────────
+  recordingBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Palette.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  cancelIcon: {
+    fontSize: 16,
+    color: Palette.textSecondary,
+    fontWeight: 'bold',
+  },
+  recordingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Palette.error,
+    marginRight: Spacing.sm,
+  },
+  recordingTimer: {
+    fontFamily: Fonts?.sansSemiBold,
+    fontSize: FontSize.lg,
+    color: Palette.error,
+    flex: 1,
+    letterSpacing: 1,
+  },
+  stopSendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Palette.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

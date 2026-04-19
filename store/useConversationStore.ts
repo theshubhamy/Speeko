@@ -16,7 +16,7 @@ interface ConversationState {
 
   // Actions
   startSession: (scenarioType: ScenarioType, scenarioTitle: string, context?: Session['context']) => void;
-  addUserMessage: (text: string) => void;
+  addUserMessage: (text: string, audioDuration?: number) => void;
   addAiMessage: (message: Message) => void;
   setIsAiTyping: (typing: boolean) => void;
   setShowFeedback: (show: boolean, messageId?: string) => void;
@@ -65,12 +65,13 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     }
   },
 
-  addUserMessage: async (text) => {
+  addUserMessage: async (text, audioDuration) => {
     const { activeSession } = get();
     const message: Message = {
       id: generateId(),
       role: 'user',
       text,
+      audioDuration,
       timestamp: Date.now(),
     };
     
